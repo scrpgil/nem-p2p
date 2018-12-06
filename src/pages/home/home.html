@@ -51,7 +51,7 @@
       <div class="json-wrapper" *ngIf="cMetaData">
         <h3>Sucess!</h3>
         <div class="generate-address-wrapper">
-          <div class="private-key-wrapper">
+          <div class="private-key-wrapper" *ngIf="testmode">
             <ion-input type="text" placeholder="address name?" [(ngModel)]="walletName"></ion-input>
           </div>
           <div class="address">Address: {{cAddress}}</div>
@@ -64,7 +64,7 @@
         <ng-container *ngFor="let b of binaries">
           <div class="binary-wrapper" (click)="copy($event)">{{b | toJsonStringify}}</div>
         </ng-container>
-        <div class="private-key-wrapper">
+        <div class="private-key-wrapper" *ngIf="testmode">
           <ion-input type="password" placeholder="Please private key." [(ngModel)]="privateKey"></ion-input>
           <button ion-button small [disabled]="privateKey == '' || cAddress == ''" (click)="createTransaction()">
             createTransaction
