@@ -1,0 +1,82 @@
+<ion-header>
+  <ion-toolbar color="dark"> <ion-title>NEM P2P</ion-title> </ion-toolbar>
+</ion-header>
+
+<ion-content padding bg-dark>
+  <ng-container *ngIf="mode">
+    <div class="fetch-wrapper">
+      <p class="title">File sharing system using block chains.</p>
+      <ion-input type="text" placeholder="Please NEM Address." [(ngModel)]="address" value=""></ion-input>
+      <div class="encrypt-wrapper">
+        <div class="form-wrapper">
+          <input type="checkbox" class="encrypt" [(ngModel)]="encrypted" id="encrypt" />
+          <label for="encrypt">File enctypted?</label>
+        </div>
+        <ion-input
+          type="password"
+          placeholder="Please private key."
+          [(ngModel)]="decryptPrivKey"
+          *ngIf="encrypted"
+        ></ion-input>
+      </div>
+      <div class="submit-wrapper">
+        <button ion-button small [disabled]="fetched == 1" (click)="fetch()">Fetch</button>
+      </div>
+      <ng-container *ngIf="console.length > 0">
+        <div class="fetch-console-wrapper"><div class="console-wrapper" *ngFor="let c of console">{{c}}</div></div>
+      </ng-container>
+      <div class="display-wrapper" *ngIf="fetched == 2">
+        <ng-container *ngIf="imageBase64 != ''"> <img [src]="imageBase64 | sanitaizer" height="50" /> </ng-container>
+        <ng-container *ngIf="audioBase64 != ''">
+          <audio [src]="audioBase64 | sanitaizer" controls></audio>
+        </ng-container>
+        <div class="download-wrapper">
+          <a id="download" [download]="metaData.name" [href]="href | sanitaizer" (click)="handleDownload()">Download</a>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+  <ng-container *ngIf="!mode">
+    <div class="convert-wrapper">
+      <!--<audio [src]="audioBase64" *ngIf="audioBase64" controls></audio>-->
+      <p class="title">File to Message Converter.</p>
+      <div class="form-group"><input type="file" id="file" (change)="handleFileInput($event.target.files)" /></div>
+      <div class="submit-wrapper">
+        <button ion-button [disabled]="!fileToUpload" small (click)="convert()">Convert</button>
+      </div>
+      <ng-container *ngIf="convertProgress.length > 0">
+        <div class="convert-progress-wrapper" *ngFor="let c of convertProgress">{{c}}</div>
+      </ng-container>
+
+      <div class="json-wrapper" *ngIf="cMetaData">
+        <h3>Sucess!</h3>
+        <div class="generate-address-wrapper">
+          <div class="private-key-wrapper">
+            <ion-input type="text" placeholder="address name?" [(ngModel)]="walletName"></ion-input>
+          </div>
+          <div class="address">Address: {{cAddress}}</div>
+          <div class="privkey">PrivateKey: {{privKey}}</div>
+          <div class="submit-wrapper"><button ion-button (click)="generate()" small>Generate Address</button></div>
+        </div>
+        <h3>Lets create transaction.</h3>
+        <div class="fee-wrapper">total fee: {{sumFee / 1000000}}XEM</div>
+        <div class="metadata-wrapper" (click)="copy($event)">{{cMetaData | toJsonStringify}}</div>
+        <ng-container *ngFor="let b of binaries">
+          <div class="binary-wrapper" (click)="copy($event)">{{b | toJsonStringify}}</div>
+        </ng-container>
+        <div class="private-key-wrapper">
+          <ion-input type="password" placeholder="Please private key." [(ngModel)]="privateKey"></ion-input>
+          <button ion-button small [disabled]="privateKey == '' || cAddress == ''" (click)="createTransaction()">
+            createTransaction
+          </button>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+</ion-content>
+<ion-footer>
+  <div class="mode">
+    <button ion-button clear small (click)="mode = !mode">Go To {{mode ? "Convert" : "Fetch"}}</button>
+  </div>
+  <div class="credit">Creaeted by 2018. <a href="https://github.com/scrpgil/nem-p2p" target="_blank">GitHub</a></div>
+</ion-footer>

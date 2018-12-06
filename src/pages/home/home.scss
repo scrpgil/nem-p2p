@@ -1,0 +1,94 @@
+page-home {
+  .fetch-wrapper,
+  .convert-wrapper {
+    max-width: 800px;
+    margin: auto;
+  }
+  h1,
+  h3,
+  p,
+  .download-wrapper a,
+  .json-wrapper,
+  .fetch-console-wrapper,
+  .submit-wrapper,
+  .encrypted-wrapper,
+  .form-group {
+    color: color($colors, primary);
+  }
+  p.title {
+    font-size: 16px;
+  }
+  ion-input {
+    color: #333;
+    background-color: #eff1f2;
+    border-radius: 4px;
+    padding-left: 4px;
+  }
+  .json-wrapper {
+    margin-top: 12px;
+  }
+  .encrypt-wrapper {
+    .form-wrapper{
+      text-align: right;
+    }
+    .ecnrypted, label {
+      margin-right: 4px;
+      color: color($colors, primary);
+    }
+    ion-input {
+      .text-input-ios {
+        margin: 4px 0px;
+      }
+    }
+  }
+  .submit-wrapper {
+    margin-top: 8px;
+  }
+  .convert-progress-wrapper {
+    color: color($colors, primary);
+    font: 1.3rem Inconsolata, monospace;
+  }
+  .fetch-console-wrapper {
+    font: 1.3rem Inconsolata, monospace;
+    text-shadow: 0 0 1px #c8c8c8;
+    border-top: 1px solid #c8c8c8;
+    margin-top: 12px;
+    word-break: break-all;
+    padding: 8px;
+    .console-wrapper {
+      padding: 2px 0px;
+    }
+  }
+  .display-wrapper {
+    margin-left: 24px;
+  }
+  .generate-address-wrapper,
+  .metadata-wrapper,
+  .binary-wrapper {
+    margin: 8px;
+    padding: 8px;
+    border-top: 1px solid color($colors, primary);
+  }
+  .mode {
+    text-align: center;
+    button {
+      text-decoration: underline;
+    }
+  }
+  .credit {
+    color: color($colors, primary);
+    text-align: center;
+    margin: 8px;
+    a {
+      color: #fff;
+    }
+  }
+  .private-key-wrapper {
+    ion-input {
+      .text-input-ios {
+        margin: 4px 0px;
+      }
+      margin-bottom: 8px;
+    }
+  }
+}
