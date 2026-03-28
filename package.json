@@ -5,6 +5,7 @@
   "scripts": {
     "start": "ng serve",
     "build": "ng build",
+    "deploy": "npx wrangler pages deploy dist/nem-p2p/browser --project-name=nem-p2p",
     "formatter": "prettier --parser typescript --single-quote --write \"./src/**/*.ts\""
   },
   "dependencies": {

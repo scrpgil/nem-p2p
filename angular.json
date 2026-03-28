@@ -18,6 +18,10 @@
             "styles": [
               "src/styles.scss"
             ],
+            "assets": [
+              "src/assets",
+              { "glob": "_redirects", "input": "src", "output": "/" }
+            ],
             "scripts": []
           },
           "configurations": {
