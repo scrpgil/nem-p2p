@@ -1,0 +1,33 @@
+@import '@ionic/angular/css/ionic.bundle.css';
+
+html,
+body,
+ion-app,
+ion-content,
+.nav-decor,
+img,
+textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+  touch-action: auto;
+  -webkit-touch-callout: default;
+}
+
+:root {
+  --ion-color-primary: #f4f4f4;
+  --ion-color-dark: #222;
+  --ion-background-color: #222;
+  --ion-text-color: #f4f4f4;
+}
+
+ion-content.bg-dark {
+  --background: #222;
+}
+
+.toast-button {
+  color: #333;
+}
+
+ion-input .input-cover {
+  display: none;
+}
