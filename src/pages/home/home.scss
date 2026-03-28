@@ -48,6 +48,11 @@
     margin-top: 8px;
   }
 
+  ion-button {
+    --background: #f4f4f4;
+    --color: #222;
+  }
+
   .convert-progress-wrapper {
     color: #f4f4f4;
     font: 1.3rem Inconsolata, monospace;
