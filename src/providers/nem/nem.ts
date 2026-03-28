@@ -1,104 +1,120 @@
-import { Injectable } from '@angular/core';
-import {
-  PlainMessage,
-  TimeWindow,
-  TransferTransaction,
-  Account,
-  TransactionHttp,
-  Transaction,
-  EmptyMessage,
-  TransactionTypes,
-  AccountHttp,
-  Address,
-  Password,
-  SimpleWallet,
-  NEMLibrary,
-  NetworkTypes,
-  XEM,
-} from 'nem-library';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { MetaData, Binary } from '../../models/file';
 import { Util } from '../util/util';
 
-@Injectable()
+const NIS1_MAINNET_NODES = [
+  'https://eolia.nis1.harvestasya.com:7891',
+  'https://finnel.nis1.harvestasya.com:7891',
+  'https://sakia.nis1.harvestasya.com:7891',
+  'https://nem01a.symbol-node.com:7891',
+  'https://nem02.symbol-node.com:7891',
+  'https://nem03.symbol-node.com:7891',
+  'https://nem04.symbol-node.com:7891',
+  'https://nem05.symbol-node.com:7891',
+];
+
+const NIS1_TESTNET_NODES = [
+  'http://104.128.226.60:7890',
+  'http://23.228.67.85:7890',
+];
+
+const TRANSFER_TYPE = 257;
+const MULTISIG_TYPE = 4100;
+
+@Injectable({ providedIn: 'root' })
 export class NemProvider {
+  private http = inject(HttpClient);
+  private nodeUrl = '';
+  private isTestnet = false;
+  private initialized = false;
+
   constructor() {
-    const q = localStorage.getItem('q');
     const mode = Util.getQueryVariable('mode');
-    if (mode === 'testnet') {
-      NEMLibrary.bootstrap(NetworkTypes.TEST_NET);
-    } else {
-      NEMLibrary.bootstrap(NetworkTypes.MAIN_NET);
-    }
+    this.isTestnet = mode === 'testnet';
   }
 
-  async getAllTransactions(address: string) {
-    try {
-      let transactions = [];
-      let loop = true;
-      while (loop) {
-        let hash = '';
-        if (transactions.length > 0) {
-          hash = transactions[transactions.length - 1].transactionInfo.hash.data;
+  private async ensureNode(): Promise<void> {
+    if (this.initialized && this.nodeUrl) return;
+    const nodes = this.isTestnet ? NIS1_TESTNET_NODES : NIS1_MAINNET_NODES;
+    for (const node of nodes) {
+      try {
+        const json: any = await firstValueFrom(
+          this.http.get(`${node}/heartbeat`, { responseType: 'json' })
+        );
+        if (json.code === 1) {
+          this.nodeUrl = node;
+          this.initialized = true;
+          console.log(`Connected to NIS1 node: ${node}`);
+          return;
         }
-        const res = await this.allTransactions(address, hash).toPromise();
-        if (res && res.length > 0) {
-          transactions = transactions.concat(res);
-        } else {
-          loop = false;
-        }
-      }
-      transactions = <TransferTransaction[]>transactions.filter(x => x.type == TransactionTypes.TRANSFER);
-      return transactions.reverse();
-    } catch (e) {
-      return null;
-    }
-  }
-  private allTransactions(address: string, hash: string = '') {
-    const accountHttp = new AccountHttp();
-    return accountHttp.allTransactions(new Address(address), { hash: hash, pageSize: 100 });
-  }
-
-  createTransactions(message: string = '', address: string = '') {
-    if (address == '') {
-      const wallet: any = this.createSimpleWallet();
-      address = wallet.address.value;
-    }
-    const transferTransaction: Transaction = TransferTransaction.create(
-      TimeWindow.createWithDeadline(),
-      new Address(address),
-      new XEM(0),
-      PlainMessage.create(message),
-    );
-    return transferTransaction;
-  }
-
-  sendTransaction(transferTransaction, privateKey) {
-    const transactionHttp = new TransactionHttp();
-    const account = Account.createWithPrivateKey(privateKey);
-    const signedTransaction = account.signTransaction(transferTransaction);
-    transactionHttp.announceTransaction(signedTransaction).subscribe(x => console.log(x));
-  }
-
-  createSimpleWallet(name: string = '') {
-    const password = new Password('password');
-    for (let i = 0; i < 10000000; i++) {
-      const simpleWallet = SimpleWallet.create('simple wallet', password);
-      const address :any = simpleWallet.address;
-      let a:string = address.value;
-      if (name == '' || a.endsWith(name)) {
-        return simpleWallet;
+      } catch {
+        // try next node
       }
     }
+    throw new Error('No NIS1 node available. Please try again later.');
   }
 
-  getPrivateKey(wallet) {
-    const password = new Password('password');
-    return wallet.encryptedPrivateKey.decrypt(password);
+  async getAllTransactions(address: string): Promise<any[]> {
+    await this.ensureNode();
+    const transactions: any[] = [];
+    let lastId = -1;
+    while (true) {
+      let url = `${this.nodeUrl}/account/transfers/all?address=${address}&pageSize=100`;
+      if (lastId >= 0) {
+        url += `&id=${lastId}`;
+      }
+      const json: any = await firstValueFrom(
+        this.http.get(url, { responseType: 'json' })
+      );
+      if (!json.data || json.data.length === 0) break;
+      transactions.push(...json.data);
+      lastId = json.data[json.data.length - 1].meta.id;
+    }
+    return transactions
+      .filter((t) => {
+        const type = t.transaction.type;
+        if (type === TRANSFER_TYPE) return true;
+        if (type === MULTISIG_TYPE && t.transaction.otherTrans?.type === TRANSFER_TYPE) return true;
+        return false;
+      })
+      .reverse();
   }
 
-  getMetaData(transaction, privKey: string = '') {
+  private getTransaction(raw: any): any {
+    if (raw.transaction.type === MULTISIG_TYPE) {
+      return raw.transaction.otherTrans;
+    }
+    return raw.transaction;
+  }
+
+  decodeMessage(raw: any, _privKey: string = ''): string {
+    const tx = this.getTransaction(raw);
+    if (!tx.message || !tx.message.payload) return '';
+    if (tx.message.type === 1) {
+      return this.hexToUtf8(tx.message.payload);
+    }
+    console.warn('Encrypted message decryption is not supported in this version.');
+    return '';
+  }
+
+  private hexToUtf8(hex: string): string {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+      bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  calculateFee(messageLength: number): number {
+    const messageFee = Math.max(1, Math.ceil(messageLength / 32)) * 50000;
+    return 50000 + messageFee;
+  }
+
+  getMetaData(transactions: any[], privKey: string = ''): MetaData | null {
     try {
-      for (const t of transaction) {
+      for (const t of transactions) {
         const msg = this.decodeMessage(t, privKey);
         if (msg !== '' && Util.isJson(msg)) {
           const obj = JSON.parse(msg);
@@ -109,23 +125,20 @@ export class NemProvider {
         }
       }
     } catch (e) {
-      console.log(e);
+      console.error(e);
     }
     return null;
   }
 
-  mergeBinaryToBase64(transaction, meta, privKey: string = ''): string {
-    let binaries: Binary[] = [];
+  mergeBinaryToBase64(transactions: any[], meta: MetaData, privKey: string = ''): string | null {
     const base64: string[] = new Array(meta.length);
     try {
-      let cnt = 0;
-      for (const t of transaction) {
+      for (const t of transactions) {
         const msg = this.decodeMessage(t, privKey);
         if (msg !== '' && Util.isJson(msg)) {
           const obj = JSON.parse(msg);
           const binary = new Binary(obj);
           if (binary.valid()) {
-            binaries.push(binary);
             if (0 <= binary.id && binary.id < meta.length) {
               if (!base64[binary.id]) {
                 base64[binary.id] = binary.b;
@@ -136,21 +149,8 @@ export class NemProvider {
       }
       return base64.join('');
     } catch (e) {
-      console.log(e);
+      console.error(e);
     }
     return null;
-  }
-
-  decodeMessage(transaction: TransferTransaction, privKey: string = '') {
-    if (transaction.message.isPlain()) {
-      const plainMessage = transaction.message as PlainMessage;
-      return plainMessage.plain();
-    } else if (transaction.message.isEncrypted()) {
-      const password = new Password('password');
-      const wallet = SimpleWallet.createWithPrivateKey('simple wallet', password, privKey);
-      const account = wallet.open(password);
-      const msg = account.decryptMessage(transaction.message, transaction.signer!).payload;
-      return msg;
-    }
   }
 }
