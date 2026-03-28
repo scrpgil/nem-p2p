@@ -1,9 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef, NgZone } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButton, IonInput, IonFooter, IonCheckbox,
+  IonButton, IonInput, IonFooter,
   ToastController,
 } from '@ionic/angular/standalone';
 import { NemProvider } from '../../providers/nem/nem';
@@ -15,11 +14,11 @@ import { ToJsonStringifyPipe } from '../../pipes/to-json-stringify/to-json-strin
 @Component({
   selector: 'app-home',
   standalone: true,
+  host: { class: 'ion-page' },
   imports: [
-    CommonModule,
     FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButton, IonInput, IonFooter, IonCheckbox,
+    IonButton, IonInput, IonFooter,
     SanitaizerPipe,
     ToJsonStringifyPipe,
   ],
@@ -50,11 +49,11 @@ export class HomePage {
   sumFee = 0;
   fileToUpload: File | null = null;
 
-  private loadingId: any = null;
-
   constructor(
     private toast: ToastController,
     private nem: NemProvider,
+    private cdr: ChangeDetectorRef,
+    private ngZone: NgZone,
   ) {
     const mode = Util.getQueryVariable('mode');
     if (mode === 'testnet') {
@@ -80,46 +79,48 @@ export class HomePage {
     if (this.address === '') return;
     this.initFetch();
     this.fetched = 1;
-    let id: any;
+    let loadingId: any;
     try {
       this.console.push('fetch from ' + this.address);
       this.console.push('get all transactions');
-      id = this.setConsoleLoading();
+      this.cdr.detectChanges();
+
       const transactions = await this.nem.getAllTransactions(this.address);
       if (!transactions || transactions.length <= 0) {
-        this.loadingStop(id);
         throw new Error('No transactions found');
       }
-      this.loadingStop(id);
+
       this.console.push('find metadata');
-      id = this.setConsoleLoading();
+      this.cdr.detectChanges();
+
       const metaData = this.nem.getMetaData(transactions, this.decryptPrivKey);
       if (!metaData) {
-        this.loadingStop(id);
         throw new Error('No metadata found');
       }
-      this.loadingStop(id);
+
       this.console.push('  name: ' + metaData.name);
       this.console.push('  type: ' + metaData.type);
       this.console.push('  size: ' + metaData.size);
       this.console.push('  lastModified: ' + metaData.lastModified);
       this.console.push('  length: ' + metaData.length);
       this.console.push('merge file');
+      this.cdr.detectChanges();
+
       this.metaData = metaData;
-      id = this.setConsoleLoading();
       this.base64 = this.nem.mergeBinaryToBase64(transactions, metaData, this.decryptPrivKey) || '';
-      this.loadingStop(id, '', true);
+
       if (metaData.isImage()) {
         this.imageBase64 = this.base64;
       } else if (metaData.isAudio()) {
         this.audioBase64 = this.base64;
       }
       this.fetched = 2;
+      this.cdr.detectChanges();
     } catch (e: any) {
-      this.loadingStop(id);
       this.fetched = 0;
       console.error(e);
       this.console.push('fetch failed! ' + (e?.message || ''));
+      this.cdr.detectChanges();
     }
   }
 
@@ -128,26 +129,6 @@ export class HomePage {
     const blob = Util.toBlob(this.base64, this.metaData.type);
     if (blob) {
       this.href = window.URL.createObjectURL(blob);
-    }
-  }
-
-  setConsoleLoading(): any {
-    const id = setInterval(() => {
-      if (this.console.length > 0) {
-        this.console[this.console.length - 1] += '.';
-      }
-    }, 1000);
-    return id;
-  }
-
-  loadingStop(id: any, text = '', clear = false) {
-    if (id) clearInterval(id);
-    if (this.console.length > 0) {
-      if (clear) {
-        this.console[this.console.length - 1] = '';
-      } else {
-        this.console[this.console.length - 1] += text;
-      }
     }
   }
 
@@ -171,22 +152,24 @@ export class HomePage {
     this.convertProgress.push('convert start');
     const fr = new FileReader();
     fr.onload = (evt: any) => {
-      const base64Array = Util.splitByLength(evt.target.result, 950);
-      this.cMetaData = new MetaData({
-        v: '0.0.1',
-        name: this.fileToUpload!.name,
-        type: this.fileToUpload!.type,
-        length: base64Array.length,
-        size: this.fileToUpload!.size,
-        lastModified: this.fileToUpload!.lastModified,
+      this.ngZone.run(() => {
+        const base64Array = Util.splitByLength(evt.target.result, 950);
+        this.cMetaData = new MetaData({
+          v: '0.0.1',
+          name: this.fileToUpload!.name,
+          type: this.fileToUpload!.type,
+          length: base64Array.length,
+          size: this.fileToUpload!.size,
+          lastModified: this.fileToUpload!.lastModified,
+        });
+        for (let i = 0; i < base64Array.length; i++) {
+          const b = new Binary({ id: i, b: base64Array[i] });
+          this.binaries.push(b);
+          const fee = this.nem.calculateFee(base64Array[i].length);
+          this.sumFee += fee;
+        }
+        this.convertProgress.push('convert complete');
       });
-      for (let i = 0; i < base64Array.length; i++) {
-        const b = new Binary({ id: i, b: base64Array[i] });
-        this.binaries.push(b);
-        const fee = this.nem.calculateFee(base64Array[i].length);
-        this.sumFee += fee;
-      }
-      this.convertProgress.push('convert complete');
     };
     fr.readAsDataURL(this.fileToUpload);
   }

@@ -5,7 +5,7 @@
 </ion-header>
 
 <ion-content class="ion-padding bg-dark">
-  <ng-container *ngIf="mode">
+  @if (mode) {
     <div class="fetch-wrapper">
       <p class="title">File sharing system using block chains.</p>
       <ion-input
@@ -16,62 +16,68 @@
       ></ion-input>
       <div class="encrypt-wrapper">
         <div class="form-wrapper">
-          <ion-checkbox [(ngModel)]="encrypted" labelPlacement="end">File encrypted?</ion-checkbox>
+          <label><input type="checkbox" [(ngModel)]="encrypted" /> File encrypted?</label>
         </div>
-        <ion-input
-          *ngIf="encrypted"
-          type="password"
-          placeholder="Please private key."
-          [(ngModel)]="decryptPrivKey"
-          fill="solid"
-        ></ion-input>
+        @if (encrypted) {
+          <ion-input
+            type="password"
+            placeholder="Please private key."
+            [(ngModel)]="decryptPrivKey"
+            fill="solid"
+          ></ion-input>
+        }
       </div>
       <div class="submit-wrapper">
-        <ion-button size="small" [disabled]="fetched === 1" (click)="fetch()">Fetch</ion-button>
+        <ion-button size="small" color="light" [disabled]="fetched === 1" (click)="fetch()">Fetch</ion-button>
       </div>
-      <ng-container *ngIf="console.length > 0">
+      @if (console.length > 0) {
         <div class="fetch-console-wrapper">
-          <div class="console-wrapper" *ngFor="let c of console">{{ c }}</div>
+          @for (c of console; track $index) {
+            <div class="console-wrapper">{{ c }}</div>
+          }
         </div>
-      </ng-container>
-      <div class="display-wrapper" *ngIf="fetched === 2">
-        <ng-container *ngIf="imageBase64 !== ''">
-          <img [src]="imageBase64 | sanitaizer" height="50" />
-        </ng-container>
-        <ng-container *ngIf="audioBase64 !== ''">
-          <audio [src]="audioBase64 | sanitaizer" controls></audio>
-        </ng-container>
-        <div class="download-wrapper">
-          <a id="download" [download]="metaData?.name" [href]="href | sanitaizer" (click)="handleDownload()">Download</a>
+      }
+      @if (fetched === 2) {
+        <div class="display-wrapper">
+          @if (imageBase64 !== '') {
+            <img [src]="imageBase64 | sanitaizer" height="50" />
+          }
+          @if (audioBase64 !== '') {
+            <audio [src]="audioBase64 | sanitaizer" controls></audio>
+          }
+          <div class="download-wrapper">
+            <a id="download" [download]="metaData?.name" [href]="href | sanitaizer" (click)="handleDownload()">Download</a>
+          </div>
         </div>
-      </div>
+      }
     </div>
-  </ng-container>
-
-  <ng-container *ngIf="!mode">
+  } @else {
     <div class="convert-wrapper">
       <p class="title">File to Message Converter.</p>
       <div class="form-group">
         <input type="file" id="file" (change)="handleFileInput($event)" />
       </div>
       <div class="submit-wrapper">
-        <ion-button [disabled]="!fileToUpload" size="small" (click)="convert()">Convert</ion-button>
+        <ion-button [disabled]="!fileToUpload" size="small" color="light" (click)="convert()">Convert</ion-button>
       </div>
-      <ng-container *ngIf="convertProgress.length > 0">
-        <div class="convert-progress-wrapper" *ngFor="let c of convertProgress">{{ c }}</div>
-      </ng-container>
-
-      <div class="json-wrapper" *ngIf="cMetaData">
-        <h3>Success!</h3>
-        <h3>Transaction data</h3>
-        <div class="fee-wrapper">total fee: {{ sumFee / 1000000 }}XEM</div>
-        <div class="metadata-wrapper" (click)="copy($event)">{{ cMetaData | toJsonStringify }}</div>
-        <ng-container *ngFor="let b of binaries">
-          <div class="binary-wrapper" (click)="copy($event)">{{ b | toJsonStringify }}</div>
-        </ng-container>
-      </div>
+      @if (convertProgress.length > 0) {
+        @for (c of convertProgress; track $index) {
+          <div class="convert-progress-wrapper">{{ c }}</div>
+        }
+      }
+      @if (cMetaData) {
+        <div class="json-wrapper">
+          <h3>Success!</h3>
+          <h3>Transaction data</h3>
+          <div class="fee-wrapper">total fee: {{ sumFee / 1000000 }}XEM</div>
+          <div class="metadata-wrapper" (click)="copy($event)">{{ cMetaData | toJsonStringify }}</div>
+          @for (b of binaries; track b.id) {
+            <div class="binary-wrapper" (click)="copy($event)">{{ b | toJsonStringify }}</div>
+          }
+        </div>
+      }
     </div>
-  </ng-container>
+  }
 </ion-content>
 
 <ion-footer>

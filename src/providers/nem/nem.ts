@@ -1,16 +1,18 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { MetaData, Binary } from '../../models/file';
 import { Util } from '../util/util';
 
 const NIS1_MAINNET_NODES = [
-  'http://nis1.pasomi.net:7890',
-  'http://eolia.nis1.harvestasya.com:7890',
-  'http://nem01a.symbol-node.com:7890',
-  'http://176.9.20.180:7890',
-  'http://195.201.37.121:7890',
-  'http://52.194.130.115:7890',
-  'http://104.237.5.122:7890',
-  'http://153.122.13.80:7890',
+  'https://eolia.nis1.harvestasya.com:7891',
+  'https://finnel.nis1.harvestasya.com:7891',
+  'https://sakia.nis1.harvestasya.com:7891',
+  'https://nem01a.symbol-node.com:7891',
+  'https://nem02.symbol-node.com:7891',
+  'https://nem03.symbol-node.com:7891',
+  'https://nem04.symbol-node.com:7891',
+  'https://nem05.symbol-node.com:7891',
 ];
 
 const NIS1_TESTNET_NODES = [
@@ -23,6 +25,7 @@ const MULTISIG_TYPE = 4100;
 
 @Injectable({ providedIn: 'root' })
 export class NemProvider {
+  private http = inject(HttpClient);
   private nodeUrl = '';
   private isTestnet = false;
   private initialized = false;
@@ -37,15 +40,14 @@ export class NemProvider {
     const nodes = this.isTestnet ? NIS1_TESTNET_NODES : NIS1_MAINNET_NODES;
     for (const node of nodes) {
       try {
-        const res = await fetch(`${node}/heartbeat`, { signal: AbortSignal.timeout(5000) });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.code === 1) {
-            this.nodeUrl = node;
-            this.initialized = true;
-            console.log(`Connected to NIS1 node: ${node}`);
-            return;
-          }
+        const json: any = await firstValueFrom(
+          this.http.get(`${node}/heartbeat`, { responseType: 'json' })
+        );
+        if (json.code === 1) {
+          this.nodeUrl = node;
+          this.initialized = true;
+          console.log(`Connected to NIS1 node: ${node}`);
+          return;
         }
       } catch {
         // try next node
@@ -57,18 +59,18 @@ export class NemProvider {
   async getAllTransactions(address: string): Promise<any[]> {
     await this.ensureNode();
     const transactions: any[] = [];
-    let hash = '';
+    let lastId = -1;
     while (true) {
       let url = `${this.nodeUrl}/account/transfers/all?address=${address}&pageSize=100`;
-      if (hash) {
-        url += `&hash=${hash}`;
+      if (lastId >= 0) {
+        url += `&id=${lastId}`;
       }
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`NIS1 API error: ${res.status}`);
-      const json = await res.json();
+      const json: any = await firstValueFrom(
+        this.http.get(url, { responseType: 'json' })
+      );
       if (!json.data || json.data.length === 0) break;
       transactions.push(...json.data);
-      hash = json.data[json.data.length - 1].meta.hash.data;
+      lastId = json.data[json.data.length - 1].meta.id;
     }
     return transactions
       .filter((t) => {
@@ -93,8 +95,6 @@ export class NemProvider {
     if (tx.message.type === 1) {
       return this.hexToUtf8(tx.message.payload);
     }
-    // Encrypted messages (type 2) require NEM-specific crypto
-    // which is not available without nem-sdk
     console.warn('Encrypted message decryption is not supported in this version.');
     return '';
   }
@@ -108,9 +108,6 @@ export class NemProvider {
   }
 
   calculateFee(messageLength: number): number {
-    // NIS1 fee calculation for 0 XEM transfer with message
-    // Minimum transfer fee: 50000 microXEM
-    // Message fee: ceil(messageLength / 32) * 50000 microXEM
     const messageFee = Math.max(1, Math.ceil(messageLength / 32)) * 50000;
     return 50000 + messageFee;
   }
