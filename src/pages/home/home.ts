@@ -1,5 +1,6 @@
-import { Component, ChangeDetectorRef, NgZone } from '@angular/core';
+import { Component, ChangeDetectorRef, NgZone, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButton, IonInput, IonFooter,
@@ -8,7 +9,6 @@ import {
 import { NemProvider } from '../../providers/nem/nem';
 import { Util } from '../../providers/util/util';
 import { MetaData, Binary } from '../../models/file';
-import { SanitaizerPipe } from '../../pipes/sanitaizer/sanitaizer';
 import { ToJsonStringifyPipe } from '../../pipes/to-json-stringify/to-json-stringify';
 
 @Component({
@@ -19,7 +19,6 @@ import { ToJsonStringifyPipe } from '../../pipes/to-json-stringify/to-json-strin
     FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButton, IonInput, IonFooter,
-    SanitaizerPipe,
     ToJsonStringifyPipe,
   ],
   templateUrl: 'home.html',
@@ -30,14 +29,13 @@ export class HomePage {
   console: string[] = [];
   mode = true; // true: fetch, false: convert
   address = '';
-  href = '#';
+  downloadUrl = '';
   encrypted = false;
   decryptPrivKey = '';
-  base64 = '';
   fetched = 0; // 0:idle, 1:fetching, 2:complete
   metaData: MetaData | null = null;
-  imageBase64 = '';
-  audioBase64 = '';
+  imageSrc: SafeUrl | null = null;
+  showAudio = false;
 
   walletName = '';
   cAddress = '';
@@ -49,11 +47,15 @@ export class HomePage {
   sumFee = 0;
   fileToUpload: File | null = null;
 
+  private pendingAudioSrc: string | null = null;
+  @ViewChild('audioPlayer') audioPlayerRef?: ElementRef<HTMLAudioElement>;
+
   constructor(
     private toast: ToastController,
     private nem: NemProvider,
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
+    private sanitizer: DomSanitizer,
   ) {
     const mode = Util.getQueryVariable('mode');
     if (mode === 'testnet') {
@@ -67,19 +69,18 @@ export class HomePage {
 
   initFetch() {
     this.console = [];
-    this.href = '#';
-    this.base64 = '';
+    this.downloadUrl = '';
     this.metaData = null;
     this.fetched = 0;
-    this.imageBase64 = '';
-    this.audioBase64 = '';
+    this.imageSrc = null;
+    this.showAudio = false;
+    this.pendingAudioSrc = null;
   }
 
   async fetch() {
     if (this.address === '') return;
     this.initFetch();
     this.fetched = 1;
-    let loadingId: any;
     try {
       this.console.push('fetch from ' + this.address);
       this.console.push('get all transactions');
@@ -93,7 +94,7 @@ export class HomePage {
       this.console.push('find metadata');
       this.cdr.detectChanges();
 
-      const metaData = this.nem.getMetaData(transactions, this.decryptPrivKey);
+      const metaData = await this.nem.getMetaData(transactions, this.decryptPrivKey);
       if (!metaData) {
         throw new Error('No metadata found');
       }
@@ -107,28 +108,36 @@ export class HomePage {
       this.cdr.detectChanges();
 
       this.metaData = metaData;
-      this.base64 = this.nem.mergeBinaryToBase64(transactions, metaData, this.decryptPrivKey) || '';
+      const dataUrl = await this.nem.mergeBinaryToBase64(transactions, metaData, this.decryptPrivKey) || '';
 
-      if (metaData.isImage()) {
-        this.imageBase64 = this.base64;
-      } else if (metaData.isAudio()) {
-        this.audioBase64 = this.base64;
+      const blob = Util.toBlob(dataUrl, metaData.type);
+      if (blob) {
+        const blobUrl = URL.createObjectURL(blob);
+        this.downloadUrl = blobUrl;
+        if (metaData.isImage()) {
+          this.imageSrc = this.sanitizer.bypassSecurityTrustUrl(blobUrl);
+        } else if (metaData.isAudio()) {
+          this.showAudio = true;
+          this.pendingAudioSrc = blobUrl;
+        }
       }
       this.fetched = 2;
       this.cdr.detectChanges();
+
+      // Set audio src directly on the DOM element after view updates
+      if (this.pendingAudioSrc) {
+        setTimeout(() => {
+          if (this.audioPlayerRef?.nativeElement) {
+            this.audioPlayerRef.nativeElement.src = this.pendingAudioSrc!;
+            this.audioPlayerRef.nativeElement.load();
+          }
+        });
+      }
     } catch (e: any) {
       this.fetched = 0;
       console.error(e);
       this.console.push('fetch failed! ' + (e?.message || ''));
       this.cdr.detectChanges();
-    }
-  }
-
-  handleDownload() {
-    if (!this.metaData) return;
-    const blob = Util.toBlob(this.base64, this.metaData.type);
-    if (blob) {
-      this.href = window.URL.createObjectURL(blob);
     }
   }
 

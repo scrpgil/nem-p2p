@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { MetaData, Binary } from '../../models/file';
 import { Util } from '../util/util';
+import { decryptMessage } from './nem-crypto';
 
 const NIS1_MAINNET_NODES = [
   'https://eolia.nis1.harvestasya.com:7891',
@@ -89,13 +90,20 @@ export class NemProvider {
     return raw.transaction;
   }
 
-  decodeMessage(raw: any, _privKey: string = ''): string {
+  async decodeMessage(raw: any, privKey: string = ''): Promise<string> {
     const tx = this.getTransaction(raw);
     if (!tx.message || !tx.message.payload) return '';
+
     if (tx.message.type === 1) {
       return this.hexToUtf8(tx.message.payload);
+    } else if (tx.message.type === 2 && privKey) {
+      try {
+        return await decryptMessage(privKey, tx.signer, tx.message.payload);
+      } catch (e) {
+        console.error('Decryption failed:', e);
+        return '';
+      }
     }
-    console.warn('Encrypted message decryption is not supported in this version.');
     return '';
   }
 
@@ -112,10 +120,10 @@ export class NemProvider {
     return 50000 + messageFee;
   }
 
-  getMetaData(transactions: any[], privKey: string = ''): MetaData | null {
+  async getMetaData(transactions: any[], privKey: string = ''): Promise<MetaData | null> {
     try {
       for (const t of transactions) {
-        const msg = this.decodeMessage(t, privKey);
+        const msg = await this.decodeMessage(t, privKey);
         if (msg !== '' && Util.isJson(msg)) {
           const obj = JSON.parse(msg);
           const metaData = new MetaData(obj);
@@ -130,11 +138,11 @@ export class NemProvider {
     return null;
   }
 
-  mergeBinaryToBase64(transactions: any[], meta: MetaData, privKey: string = ''): string | null {
+  async mergeBinaryToBase64(transactions: any[], meta: MetaData, privKey: string = ''): Promise<string | null> {
     const base64: string[] = new Array(meta.length);
     try {
       for (const t of transactions) {
-        const msg = this.decodeMessage(t, privKey);
+        const msg = await this.decodeMessage(t, privKey);
         if (msg !== '' && Util.isJson(msg)) {
           const obj = JSON.parse(msg);
           const binary = new Binary(obj);

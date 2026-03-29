@@ -39,14 +39,14 @@
       }
       @if (fetched === 2) {
         <div class="display-wrapper">
-          @if (imageBase64 !== '') {
-            <img [src]="imageBase64 | sanitaizer" height="50" />
+          @if (imageSrc) {
+            <img [src]="imageSrc" height="50" />
           }
-          @if (audioBase64 !== '') {
-            <audio [src]="audioBase64 | sanitaizer" controls></audio>
+          @if (showAudio) {
+            <audio #audioPlayer controls></audio>
           }
           <div class="download-wrapper">
-            <a id="download" [download]="metaData?.name" [href]="href | sanitaizer" (click)="handleDownload()">Download</a>
+            <a id="download" [download]="metaData?.name" [href]="downloadUrl">Download</a>
           </div>
         </div>
       }
@@ -86,5 +86,9 @@
       Go To {{ mode ? "Convert" : "Fetch" }}
     </ion-button>
   </div>
-  <div class="credit">Created by 2018. <a href="https://github.com/scrpgil/nem-p2p" target="_blank">GitHub</a></div>
+  <div class="credit">
+    Created by 2018.
+    <a href="https://github.com/scrpgil/nem-p2p" target="_blank">GitHub</a> |
+    <a href="https://explorer.nemtool.com/" target="_blank">NEM Explorer</a>
+  </div>
 </ion-footer>
